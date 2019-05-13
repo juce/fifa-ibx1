@@ -2,5 +2,5 @@
 *.log
 *.png
 *.xml
-dat/
-xmls/
+dat*/
+xml*/

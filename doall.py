@@ -3,6 +3,10 @@
 import os
 import sys
 
+if len(sys.argv)<3:
+    print(f'Usage: {sys.argv[0]} <input_dir|input_file> <output_dir>')
+    sys.exit(0)
+
 src = sys.argv[1]
 dst = sys.argv[2]
 
