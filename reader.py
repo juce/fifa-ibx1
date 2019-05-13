@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys
 import struct
 
@@ -7,37 +9,69 @@ with open(sys.argv[1],"rb") as f:
 print(len(data), file=sys.stderr)
 
 sig = data[:4]
-num1 = data[4]
-num2 = data[5]
-print(num1, file=sys.stderr)
-print(num2, file=sys.stderr)
+if sig != b"IBX1":
+    # not an IBX1 file : just mirror it to stdout
+    sys.stdout.buffer.write(data)
+    exit(0)
+
+num_strings = data[4]
+offs = 5
+if num_strings == 0x40:
+    # multi-part
+    num_strings = data[offs]
+    offs += 1
+
+print(hex(num_strings), file=sys.stderr)
 
 strings = []
 
 # read strings
-offs = 6
-for i in range(num2):
+for i in range(num_strings):
     clen = data[offs]
-    value = data[offs+1:offs+1+clen].decode("utf-8")
-    zero = data[offs+1+clen]
-    offs += clen + 2
+    offs += 1
+    if clen == 0x40:
+        # 1 byte value follows
+        clen = data[offs]
+        offs += 1
+    value = data[offs:offs+clen].decode("utf-8")
+    zero = data[offs+clen]
+    offs += clen+1
     print(hex(i), value, file=sys.stderr)
     strings.append(value)
 
 # read typed values
-print(data[offs], file=sys.stderr)
-num_typed_values = data[offs+1]
-print(num_typed_values, file=sys.stderr)
+num_typed_values = 0
+if data[offs] == 0x40:
+    # 1 byte vaue follows
+    num_typed_values = data[offs+1]
+    offs += 2
+elif data[offs] == 0x80:
+    # 2 byte value follows (big endian)
+    num_typed_values = struct.unpack('>h',data[offs+1:offs+3])[0]
+    offs += 3
+else:
+    num_typed_values = data[offs]
+    offs += 1
+print(hex(num_typed_values), file=sys.stderr)
 
-offs += 2
 values = []
 
 def get_typed_value(data, offs):
     typ = data[offs]
-    if typ < 0x30:
+    if typ < 0x10:
         # one-byte int
         v = (hex(typ), "int", typ)
         offs += 1
+    elif typ == 0x10:
+        # 1-byte integer
+        value = data[offs+1]
+        v = (hex(typ), "int", value)
+        offs += 2
+    elif typ == 0x20:
+        # 2-byte integer
+        value = struct.unpack("<h",data[offs+1:offs+3])[0]
+        v = (hex(typ), "int", value)
+        offs += 3
     elif typ == 0x30:
         # 4-byte integer
         value = struct.unpack("<i",data[offs+1:offs+5])[0]
@@ -78,41 +112,62 @@ while len(values) < num_typed_values:
     value, offs = get_typed_value(data, offs)
     values.append(value)
 
-print(values, file=sys.stderr)
+for i,value in enumerate(values):
+    print(hex(i), value, file=sys.stderr)
 
 # encoding
 encoding = data[offs]
 offs += 1
 
-print(f'encoding: {encoding}', file=sys.stderr)
+print(f'encoding: {hex(encoding)}', file=sys.stderr)
 
 
 def get_prop(data, offs):
     ptyp = data[offs]
-    name = strings[data[offs+1]]
-    vtyp = data[offs+2]
-    if ptyp == 0xa0 and vtyp == 0x40:
+    if ptyp == 0xa0 and data[offs+2] == 0x40:
+        name = strings[data[offs+1]]
         value = values[data[offs+3]]
         offs += 4
+    elif ptyp == 0xa0 and data[offs+2] == 0x80:
+        name = strings[data[offs+1]]
+        value = values[struct.unpack('>h',data[offs+3:offs+5])[0]]
+        offs += 5
     elif ptyp == 0xa0:
-        value = values[vtyp]
+        name = strings[data[offs+1]]
+        value = values[data[offs+2]]
         offs += 3
     else:
         name = strings[data[offs] - 0x80]
-        value = values[data[offs+1]]
-        offs += 2
+        b = data[offs+1]
+        if b == 0x40:
+            value = values[data[offs+2]]
+            offs += 3
+        elif b == 0x80:
+            value = values[struct.unpack('>h',data[offs+2:offs+4])[0]]
+            offs += 4
+        else:
+            value = values[b]
+            offs += 2
     print(('property',name,value), file=sys.stderr)
     return {'Elem': 'property', 'attrs': {'name':name, 'value':value}}, offs
 
 def get_element(data, offs):
     print(f'offs: {hex(offs)}', file=sys.stderr)
     zero = data[offs]
-    name = strings[data[offs+1]]
-    num_properties = data[offs+2]
-    num_children = data[offs+3]
+    v = data[offs+1]
+    offs += 2
+    if v == 0x40:
+        v = data[offs]
+        offs += 1
+    elif v == 0x80:
+        v = struct.unpack('>h',data[offs:offs+2])[0]
+        offs += 2
+    name = strings[v]
+    num_properties = data[offs]
+    num_children = data[offs+1]
     print(f'Elem: {name}, {num_properties} props, {num_children} children', file=sys.stderr)
     props = []
-    offs += 4
+    offs += 2
     for i in range(num_properties):
         prop, offs = get_prop(data, offs)
         props.append(prop)

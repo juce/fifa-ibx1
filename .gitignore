@@ -1,2 +1,6 @@
-*.xml
 *.big
+*.log
+*.png
+*.xml
+dat/
+xmls/
