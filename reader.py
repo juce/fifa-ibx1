@@ -47,7 +47,7 @@ if data[offs] == 0x40:
     offs += 2
 elif data[offs] == 0x80:
     # 2 byte value follows (big endian)
-    num_typed_values = struct.unpack('>h',data[offs+1:offs+3])[0]
+    num_typed_values = struct.unpack('>H',data[offs+1:offs+3])[0]
     offs += 3
 else:
     num_typed_values = data[offs]
@@ -130,7 +130,7 @@ def get_prop(data, offs):
         offs += 4
     elif ptyp == 0xa0 and data[offs+2] == 0x80:
         name = strings[data[offs+1]]
-        value = values[struct.unpack('>h',data[offs+3:offs+5])[0]]
+        value = values[struct.unpack('>H',data[offs+3:offs+5])[0]]
         offs += 5
     elif ptyp == 0xa0:
         name = strings[data[offs+1]]
@@ -143,7 +143,7 @@ def get_prop(data, offs):
             value = values[data[offs+2]]
             offs += 3
         elif b == 0x80:
-            value = values[struct.unpack('>h',data[offs+2:offs+4])[0]]
+            value = values[struct.unpack('>H',data[offs+2:offs+4])[0]]
             offs += 4
         else:
             value = values[b]
@@ -160,7 +160,7 @@ def get_element(data, offs):
         v = data[offs]
         offs += 1
     elif v == 0x80:
-        v = struct.unpack('>h',data[offs:offs+2])[0]
+        v = struct.unpack('>H',data[offs:offs+2])[0]
         offs += 2
     name = strings[v]
     num_properties = data[offs]
