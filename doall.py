@@ -9,6 +9,7 @@ if len(sys.argv)<3:
 
 src = sys.argv[1]
 dst = sys.argv[2]
+log = open("doall.log", "wt")
 
 def mkdirs(path):
     if not os.path.exists(path):
@@ -17,9 +18,15 @@ def mkdirs(path):
 def convert_file(pathname):
     dstname = pathname.replace(f'{src}/', f'{dst}/')
     dstname = dstname.replace('.DAT', '.xml')
-    cmd = f'{sys.executable} reader.py {pathname} 2>>debug.log 1>{dstname}'
-    print(f'converting {pathname} --> {dstname}')
-    os.system(cmd)
+    cmd = f'{sys.executable} reader.py {pathname} {dstname}'
+    print(f'converting {pathname} --> {dstname} ... ', flush=True, end="")
+    res = os.system(cmd)
+    if res == 0:
+        print('OK')
+        print(f'converting {pathname} --> {dstname} : OK', file=log)
+    else:
+        print('FAILED')
+        print(f'converting {pathname} --> {dstname} : FAILED', file=log)
     return 1
 
 def convert_dir(path):
@@ -41,3 +48,5 @@ else:
     total = convert_file(src)
 
 print(f'converted {total} files')
+print(f'converted {total} files', file=log)
+log.close()
