@@ -17,7 +17,10 @@ def mkdirs(path):
 
 def convert_file(pathname):
     dstname = pathname.replace(f'{src}/', f'{dst}/')
-    dstname = dstname.replace('.DAT', '.xml')
+    dstname, _ = os.path.splitext(dstname)
+    dstname = f'{dstname}.xml'
+    ddir, dfile = os.path.split(dstname)
+    mkdirs(ddir)
     cmd = f'{sys.executable} reader.py {pathname} {dstname}'
     print(f'converting {pathname} --> {dstname} ... ', flush=True, end="")
     res = os.system(cmd)
@@ -36,12 +39,11 @@ def convert_dir(path):
         relname = path + '/' + name
         if os.path.isdir(relname):
             count += convert_dir(relname)
-        if relname.endswith('.DAT'):
+        if relname.lower().endswith('.dat'):
             count += convert_file(relname)
     return count
 
 
-mkdirs(dst)
 if os.path.isdir(src):
     total = convert_dir(src)
 else:
