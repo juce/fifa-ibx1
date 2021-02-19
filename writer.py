@@ -43,6 +43,16 @@ def add(li, item):
     li.append(item)
 
 
+def count_extra_attributes(node):
+    count = 0
+    if node.nodeType == Node.ELEMENT_NODE and node.nodeName != "property":
+        attrs = node.attributes
+        count += attrs.length
+    for x in node.childNodes:
+        count += count_extra_attributes(x)
+    return count
+
+
 def enumerate_strings(node, strings):
     """
     Walk the XML document structure and find all strings, which are either:
@@ -129,9 +139,11 @@ def enumerate_typed_values(node, strings, typed_values):
 def encode_number(x):
     if x < 0x40:
         return struct.pack('>B', x)
-    if x < 0x80:
+    if x < 0x100:
         return b'\x40' + struct.pack('>B', x)
-    return b'\x80' + struct.pack('>H', x)
+    if x < 0x10000:
+        return b'\x80' + struct.pack('>H', x)
+    return b'\xc0' + struct.pack('>I', x)
 
 
 def create_tree(node, strings, value_index):
@@ -202,6 +214,15 @@ def output_tree(tree, f):
             output_tree(x, f)
 
 
+# step 0: sanity-check XML file
+extra_attrs = count_extra_attributes(doc.documentElement)
+if extra_attrs > 0:
+    # cannot encode. Just mirror as-is
+    with open(sys.argv[1], 'rb') as inf:
+        with open(sys.argv[2], 'wb') as outf:
+            outf.write(inf.read())
+    sys.exit(0)
+
 # step 1: enumerate all strings
 strings = []
 enumerate_strings(doc.documentElement, strings)
@@ -233,7 +254,7 @@ with open(sys.argv[2], 'wb') as f:
     # strings
     f.write(encode_number(len(strings)))
     for s in strings:
-        f.write(struct.pack('>B', len(s)))
+        f.write(encode_number(len(s)))
         f.write(s.encode('utf-8'))
         f.write(b'\0')
     # typed values
