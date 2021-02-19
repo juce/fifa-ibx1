@@ -10,7 +10,7 @@ if len(sys.argv)<3:
 src = sys.argv[1]
 dst = sys.argv[2]
 _debug = '--debug' if len(sys.argv)>3 and sys.argv[3] == '--debug' else ''
-log = open("doall.log", "wt")
+log = open(f'{sys.argv[0].replace(".py",".log")}', "wt")
 
 def mkdirs(path):
     if not os.path.exists(path):
