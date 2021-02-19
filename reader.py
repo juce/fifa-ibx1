@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+"""
+IBX1 Decoder for FIFA
+"""
+
 import sys
 import struct
 

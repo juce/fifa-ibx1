@@ -4,11 +4,12 @@ import os
 import sys
 
 if len(sys.argv)<3:
-    print(f'Usage: {sys.argv[0]} <input_dir|input_file> <output_dir>')
+    print(f'Usage: {sys.argv[0]} <input_dir|input_file> <output_dir> [--debug]')
     sys.exit(0)
 
 src = sys.argv[1]
 dst = sys.argv[2]
+_debug = '--debug' if len(sys.argv)>3 and sys.argv[3] == '--debug' else ''
 log = open("doall.log", "wt")
 
 def mkdirs(path):
@@ -21,7 +22,7 @@ def convert_file(pathname):
     dstname = f'{dstname}.xml'
     ddir, dfile = os.path.split(dstname)
     mkdirs(ddir)
-    cmd = f'{sys.executable} reader.py {pathname} {dstname}'
+    cmd = f'{sys.executable} reader.py {pathname} {dstname} {_debug}'
     print(f'converting {pathname} --> {dstname} ... ', flush=True, end="")
     res = os.system(cmd)
     if res == 0:
