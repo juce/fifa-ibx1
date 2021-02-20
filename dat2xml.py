@@ -4,25 +4,27 @@ import os
 import sys
 
 if len(sys.argv)<3:
-    print(f'Usage: {sys.argv[0]} <input_dir|input_file> <output_dir> [--debug]')
+    print(f'Usage: {sys.argv[0]} <input_dir|input_file> <output_dir> [options]')
     sys.exit(0)
 
 src = sys.argv[1]
 dst = sys.argv[2]
-_debug = '--debug' if len(sys.argv)>3 and sys.argv[3] == '--debug' else ''
+opts = ' '.join(sys.argv[3:])
 log = open(f'{sys.argv[0].replace(".py",".log")}', "wt")
 
 def mkdirs(path):
-    if not os.path.exists(path):
+    if path and not os.path.exists(path):
         os.makedirs(path)
 
 def convert_file(pathname):
-    dstname = pathname.replace(f'{src}/', f'{dst}/')
+    sdir, sfile = os.path.split(pathname)
+    dstname = pathname.replace(sdir, f'{dst}', 1)
+    dstname = os.path.normpath(dstname)
     dstname, _ = os.path.splitext(dstname)
     dstname = f'{dstname}.xml'
     ddir, dfile = os.path.split(dstname)
     mkdirs(ddir)
-    cmd = f'{sys.executable} reader.py {pathname} {dstname} {_debug}'
+    cmd = f'{sys.executable} reader.py {pathname} {dstname} {opts}'
     print(f'converting {pathname} --> {dstname} ... ', flush=True, end="")
     res = os.system(cmd)
     if res == 0:

@@ -8,29 +8,41 @@ import sys
 import struct
 
 if len(sys.argv)<3:
-    print(f"Usage {sys.argv[0]} <input.DAT> <output.xml> [--debug]")
+    print(f"Usage {sys.argv[0]} <input.DAT> <output.xml> [--hex8] [--hex16] [--hex32] [--debug]")
     sys.exit(0)
 
-with open(sys.argv[1],"rb") as f:
+infile = sys.argv[1]
+outfile = sys.argv[2]
+
+with open(infile, 'rb') as f:
     data = f.read()
 
-# optional debug flag
 _debug = False
-if len(sys.argv) > 3 and sys.argv[3] == "--debug":
-    _debug = True
+_hex8, _hex16, _hex32 = False, False, False
+for x in sys.argv[3:]:
+    if x == '--hex8':
+        _hex8 = True
+    elif x == '--hex16':
+        _hex16 = True
+    elif x == '--hex32':
+        _hex32 = True
+    elif x == '--debug':
+        _debug = True
+
 
 def debug(*args, **kwargs):
     if _debug:
         print(*args, **kwargs)
 
-debug(len(data))
+#debug(len(data))
 
 sig = data[:4]
 if sig != b"IBX1":
     # not an IBX1 file : just mirror it to stdout
-    with open(sys.argv[2], "wb") as f:
+    with open(outfile, 'wb') as f:
         f.write(data)
     exit(0)
+
 
 def get_value(data, offs):
     v = data[offs]
@@ -47,6 +59,7 @@ def get_value(data, offs):
         v = struct.unpack('>I',data[offs+1:offs+5])[0]
         return v, offs+5
     return v, offs+1
+
 
 offs = 4
 num_strings, offs = get_value(data, offs)
@@ -70,26 +83,27 @@ debug(hex(num_typed_values))
 
 values = []
 
+
 def get_typed_value(data, offs):
     typ = data[offs]
     if typ < 0x10:
         # one-byte int
-        v = (hex(typ), "int", typ)
+        v = (hex(typ), "int8", typ)
         offs += 1
     elif typ == 0x10:
         # 1-byte integer
-        value = data[offs+1]
-        v = (hex(typ), "int", value)
+        value = struct.unpack("<b",data[offs+1:offs+2])[0]
+        v = (hex(typ), "int8", value)
         offs += 2
     elif typ == 0x20:
         # 2-byte integer
         value = struct.unpack("<h",data[offs+1:offs+3])[0]
-        v = (hex(typ), "int", value)
+        v = (hex(typ), "int16", value)
         offs += 3
     elif typ == 0x30:
         # 4-byte integer
         value = struct.unpack("<i",data[offs+1:offs+5])[0]
-        v = (hex(typ), "int", value)
+        v = (hex(typ), "int32", value)
         offs += 5
     elif typ == 0xb0:
         # 4-byte float
@@ -159,6 +173,7 @@ def get_prop(data, offs):
     debug(('property',name,value))
     return {'Elem': 'property', 'attrs': {'name':name, 'value':value}}, offs
 
+
 def get_element(data, offs):
     debug(f'offs: {hex(offs)}')
     zero = data[offs]
@@ -184,6 +199,7 @@ def get_element(data, offs):
 doc, offs = get_element(data, offs)
 debug(doc)
 
+
 def make_element(xdoc, e):
     elem = xdoc.createElement(e['Elem'])
     for prop in e.get('props',[]):
@@ -197,12 +213,20 @@ def make_element(xdoc, e):
         for k,v in attrs.items():
             if type(v) == tuple:
                 elem.setAttribute("type", v[1])
-                elem.setAttribute("value", str(v[2]))
+                if v[1] == 'int8' and _hex8:
+                    elem.setAttribute("value", '0x%02X' % ((0x100 + v[2]) % 0x10))
+                elif v[1] == 'int16' and _hex16:
+                    elem.setAttribute("value", '0x%04X' % ((0x10000 + v[2]) % 0x10000))
+                elif v[1] == 'int32' and _hex32:
+                    elem.setAttribute("value", '0x%08X' % ((0x100000000 + v[2]) % 0x100000000))
+                else:
+                    elem.setAttribute("value", str(v[2]))
                 if v[2] is None:
                     elem.setAttribute("__tbyte", str(v[0]))
             else:
                 elem.setAttribute(k, str(v))
     return elem
+
 
 # convert to xml
 from xml.dom import minidom
