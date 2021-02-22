@@ -1,9 +1,12 @@
 package data
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
+	"encoding/xml"
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -197,4 +200,276 @@ func (d *Document) Encode() []byte {
 	// node structure
 	buf.Write(d.Element.Encode())
 	return buf.Bytes()
+}
+
+func ReadNumber(reader *bufio.Reader) (*Number, error) {
+	b, err := reader.ReadByte()
+	if err != nil {
+		return nil, err
+	}
+	if b < 0x40 {
+		return &Number{int(b)}, nil
+	}
+	if b == 0x40 {
+		v, err := reader.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+		return &Number{int(v)}, nil
+	} else if b == 0x80 {
+		var bs = make([]byte, 2)
+		_, err := io.ReadFull(reader, bs)
+		if err != nil {
+			return nil, err
+		}
+		v := binary.BigEndian.Uint16(bs)
+		return &Number{int(v)}, nil
+	}
+	return nil, fmt.Errorf("unknown number encoding")
+}
+
+func ReadTypedValue(reader *bufio.Reader) (TypedValue, error) {
+	b, err := reader.ReadByte()
+	if err != nil {
+		return nil, err
+	}
+	if b < 0x10 {
+		return Int8{int8(b)}, nil
+	}
+	if b == 0x10 {
+		v, err := reader.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+		return Int8{int8(v)}, nil
+	}
+	if b == 0x20 {
+		bs := make([]byte, 2)
+		_, err := io.ReadFull(reader, bs)
+		if err != nil {
+			return nil, err
+		}
+		v := binary.LittleEndian.Uint16(bs)
+		return Int16{int16(v)}, nil
+	}
+	if b == 0x30 {
+		bs := make([]byte, 4)
+		_, err := io.ReadFull(reader, bs)
+		if err != nil {
+			return nil, err
+		}
+		v := binary.LittleEndian.Uint32(bs)
+		return Int32{int32(v)}, nil
+	}
+	if b == 0x40 {
+		return Bool{false}, nil
+	}
+	if b == 0x41 {
+		return Bool{true}, nil
+	}
+	if b == 0xb0 {
+		bs := make([]byte, 4)
+		_, err := io.ReadFull(reader, bs)
+		if err != nil {
+			return nil, err
+		}
+		var v float32
+		buf := bytes.NewReader(bs)
+		err = binary.Read(buf, binary.LittleEndian, &v)
+		if err != nil {
+			return nil, err
+		}
+		return Float{v}, nil
+	}
+	if b >= 0xc0 && b < 0xd0 {
+		v := int(b) - 0xc0
+		return String{v}, nil
+	}
+	if b == 0xd0 {
+		v, err := reader.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+		return String{int(v)}, nil
+	}
+	if b == 0xe0 {
+		bs := make([]byte, 2)
+		_, err := io.ReadFull(reader, bs)
+		if err != nil {
+			return nil, err
+		}
+		var v uint16
+		buf := bytes.NewReader(bs)
+		err = binary.Read(buf, binary.BigEndian, &v)
+		if err != nil {
+			return nil, err
+		}
+		return String{int(v)}, nil
+	}
+
+	return nil, nil //fmt.Errorf("unknown typed-value encoding")
+}
+
+func ReadProperty(reader *bufio.Reader) (*Property, error) {
+	b, err := reader.ReadByte()
+	if err != nil {
+		return nil, err
+	}
+	if b < 0xa0 {
+		nameIndex := int(b) - 0x80
+		v, err := ReadNumber(reader)
+		if err != nil {
+			return nil, err
+		}
+		return &Property{Name: nameIndex, Value: v.Value}, nil
+	}
+	if b == 0xa0 {
+		v, err := reader.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+		nameIndex := int(v)
+		val, err := ReadNumber(reader)
+		if err != nil {
+			return nil, err
+		}
+		return &Property{Name: nameIndex, Value: val.Value}, nil
+	}
+	if b == 0xc0 {
+		bs := make([]byte, 2)
+		_, err := io.ReadFull(reader, bs)
+		if err != nil {
+			return nil, err
+		}
+		var v uint16
+		buf := bytes.NewReader(bs)
+		err = binary.Read(buf, binary.BigEndian, &v)
+		if err != nil {
+			return nil, err
+		}
+		nameIndex := int(v)
+		val, err := ReadNumber(reader)
+		if err != nil {
+			return nil, err
+		}
+		return &Property{Name: nameIndex, Value: val.Value}, nil
+	}
+	return nil, fmt.Errorf("unknown property type")
+}
+
+func ReadNode(reader *bufio.Reader) (*Node, error) {
+	b, err := reader.ReadByte()
+	if err != nil {
+		return nil, err
+	}
+	if b != 0 {
+		return nil, fmt.Errorf("element must start with 0-byte")
+	}
+	nameIndex, err := ReadNumber(reader)
+	if err != nil {
+		return nil, err
+	}
+	numProps, err := ReadNumber(reader)
+	if err != nil {
+		return nil, err
+	}
+	numElems, err := ReadNumber(reader)
+	if err != nil {
+		return nil, err
+	}
+	node := &Node{Name: nameIndex.Value}
+	for i := 0; i < numProps.Value; i++ {
+		p, err := ReadProperty(reader)
+		if err != nil {
+			return nil, err
+		}
+		node.Properties = append(node.Properties, p)
+	}
+	for i := 0; i < numElems.Value; i++ {
+		c, err := ReadNode(reader)
+		if err != nil {
+			return nil, err
+		}
+		node.Children = append(node.Children, c)
+	}
+	return node, nil
+}
+
+func (d *Document) GetTypeAndValue(val TypedValue) (string, string) {
+	switch val.(type) {
+	case String:
+		typeId := val.TypeId()
+		if typeId >= 0xc0 && typeId < 0xd0 {
+			v := typeId - 0xc0
+			return "string", d.Strings[v]
+		} else if typeId == 0xd0 || typeId == 0xe0 {
+			v := val.(String)
+			return "string", d.Strings[v.Value]
+		}
+	case Float:
+		v := val.(Float)
+		return "float", fmt.Sprintf("%f", v.Value)
+	case Bool:
+		v := val.(Bool)
+		if v.Value {
+			return "bool", "true"
+		}
+		return "bool", "false"
+	case Int8:
+		v := val.(Int8)
+		return "int8", fmt.Sprintf("%d", v.Value)
+	case Int16:
+		v := val.(Int16)
+		return "int16", fmt.Sprintf("%d", v.Value)
+	case Int32:
+		v := val.(Int32)
+		return "int32", fmt.Sprintf("%d", v.Value)
+	}
+	return "_?_", "_?_"
+}
+
+func (d *Document) WriteProperty(writer *bufio.Writer, prop *Property, indent int) {
+	for i := 0; i < indent; i++ {
+		writer.Write([]byte(" "))
+	}
+	name := d.Strings[prop.Name]
+	typ, val := d.GetTypeAndValue(d.TypedValues[prop.Value])
+	writer.Write([]byte("<property name=\""))
+	xml.EscapeText(writer, []byte(name))
+	writer.Write([]byte("\" type=\""))
+	xml.EscapeText(writer, []byte(typ))
+	writer.Write([]byte("\" value=\""))
+	xml.EscapeText(writer, []byte(val))
+	writer.Write([]byte("\"/>\n"))
+}
+
+func (d *Document) WriteNode(writer *bufio.Writer, node *Node, indent int, nextIndent int) {
+	for i := 0; i < indent; i++ {
+		writer.Write([]byte(" "))
+	}
+	if len(node.Properties) == 0 && len(node.Children) == 0 {
+		// empty element
+		writer.Write([]byte("<"))
+		xml.EscapeText(writer, []byte(d.Strings[node.Name]))
+		writer.Write([]byte("/>\n"))
+	} else {
+		// start tag
+		writer.Write([]byte("<"))
+		xml.EscapeText(writer, []byte(d.Strings[node.Name]))
+		writer.Write([]byte(">\n"))
+		// child nodes
+		for _, p := range node.Properties {
+			d.WriteProperty(writer, p, nextIndent)
+		}
+		for _, c := range node.Children {
+			d.WriteNode(writer, c, nextIndent, nextIndent+nextIndent-indent)
+		}
+		// end tag
+		for i := 0; i < indent; i++ {
+			writer.Write([]byte(" "))
+		}
+		writer.Write([]byte("</"))
+		xml.EscapeText(writer, []byte(d.Strings[node.Name]))
+		writer.Write([]byte(">\n"))
+	}
 }
