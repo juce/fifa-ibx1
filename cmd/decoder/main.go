@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"juce/fifa-ibx1/data"
@@ -132,6 +133,13 @@ func main() {
 
 	outf.Write([]byte("<?xml version=\"1.0\" ?>\n"))
 	writer := bufio.NewWriter(outf)
-	doc.WriteNode(writer, doc.Element, 0, 2)
+
+	enc := xml.NewEncoder(writer)
+	enc.Indent("", "  ")
+	err = doc.WriteNode(enc, doc.Element)
+	if err != nil {
+		fmt.Printf("%v\n", err)
+		os.Exit(1)
+	}
 	writer.Flush()
 }

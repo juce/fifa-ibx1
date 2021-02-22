@@ -428,48 +428,48 @@ func (d *Document) GetTypeAndValue(val TypedValue) (string, string) {
 	return "_?_", "_?_"
 }
 
-func (d *Document) WriteProperty(writer *bufio.Writer, prop *Property, indent int) {
-	for i := 0; i < indent; i++ {
-		writer.Write([]byte(" "))
-	}
+func (d *Document) WriteProperty(enc *xml.Encoder, prop *Property) error {
 	name := d.Strings[prop.Name]
 	typ, val := d.GetTypeAndValue(d.TypedValues[prop.Value])
-	writer.Write([]byte("<property name=\""))
-	xml.EscapeText(writer, []byte(name))
-	writer.Write([]byte("\" type=\""))
-	xml.EscapeText(writer, []byte(typ))
-	writer.Write([]byte("\" value=\""))
-	xml.EscapeText(writer, []byte(val))
-	writer.Write([]byte("\"/>\n"))
+
+	t := xml.StartElement{
+		Name: xml.Name{Local: "property"},
+		Attr: []xml.Attr{
+			xml.Attr{Name: xml.Name{Local: "name"}, Value: name},
+			xml.Attr{Name: xml.Name{Local: "type"}, Value: typ},
+			xml.Attr{Name: xml.Name{Local: "value"}, Value: val},
+		},
+	}
+	err := enc.EncodeToken(t)
+	if err != nil {
+		return err
+	}
+	err = enc.EncodeToken(t.End())
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (d *Document) WriteNode(writer *bufio.Writer, node *Node, indent int, nextIndent int) {
-	for i := 0; i < indent; i++ {
-		writer.Write([]byte(" "))
+func (d *Document) WriteNode(enc *xml.Encoder, node *Node) error {
+	// start tag
+	name := d.Strings[node.Name]
+	t := xml.StartElement{Name: xml.Name{Local: name}}
+	err := enc.EncodeToken(t)
+	if err != nil {
+		return err
 	}
-	if len(node.Properties) == 0 && len(node.Children) == 0 {
-		// empty element
-		writer.Write([]byte("<"))
-		xml.EscapeText(writer, []byte(d.Strings[node.Name]))
-		writer.Write([]byte("/>\n"))
-	} else {
-		// start tag
-		writer.Write([]byte("<"))
-		xml.EscapeText(writer, []byte(d.Strings[node.Name]))
-		writer.Write([]byte(">\n"))
-		// child nodes
-		for _, p := range node.Properties {
-			d.WriteProperty(writer, p, nextIndent)
-		}
-		for _, c := range node.Children {
-			d.WriteNode(writer, c, nextIndent, nextIndent+nextIndent-indent)
-		}
-		// end tag
-		for i := 0; i < indent; i++ {
-			writer.Write([]byte(" "))
-		}
-		writer.Write([]byte("</"))
-		xml.EscapeText(writer, []byte(d.Strings[node.Name]))
-		writer.Write([]byte(">\n"))
+	// child nodes
+	for _, p := range node.Properties {
+		d.WriteProperty(enc, p)
 	}
+	for _, c := range node.Children {
+		d.WriteNode(enc, c)
+	}
+	// end tag
+	err = enc.EncodeToken(t.End())
+	if err != nil {
+		return err
+	}
+	return nil
 }
