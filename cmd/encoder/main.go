@@ -23,18 +23,23 @@ type XmlProp struct {
 
 func main() {
 	if len(os.Args) < 3 {
+		fmt.Printf("FIFA IBX1 Encoder by juce. Version: %s\n", Version)
 		fmt.Printf("Usage: %s <infile> <outfile> [options]\n", os.Args[0])
 		os.Exit(0)
 	}
 
 	infile := os.Args[1]
 	outfile := os.Args[2]
+	os.Exit(ProcessFile(infile, outfile, os.Args[3:]))
+}
+
+func ProcessFile(infile string, outfile string, opts []string) int {
 	fmt.Printf("converting %s --> %s ...\n", infile, outfile)
 
 	f, err := os.Open(infile)
 	if err != nil {
 		fmt.Errorf("opening input file: %v", err)
-		os.Exit(1)
+		return 1
 	}
 	defer f.Close()
 
@@ -51,7 +56,7 @@ func main() {
 			break
 		} else if err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		switch tok := tok.(type) {
 		case xml.StartElement:
@@ -110,10 +115,11 @@ func main() {
 	f, err = os.Create(outfile)
 	if err != nil {
 		fmt.Printf("opening output file: %v", err)
-		os.Exit(1)
+		return 1
 	}
 	defer f.Close()
 
 	result := doc.Encode()
 	f.Write(result)
+	return 0
 }

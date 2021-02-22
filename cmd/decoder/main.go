@@ -13,18 +13,24 @@ var Version = "unknown"
 
 func main() {
 	if len(os.Args) < 3 {
+		fmt.Printf("FIFA IBX1 Decoder by juce. Version: %s\n", Version)
 		fmt.Printf("Usage: %s <infile> <outfile> [options]\n", os.Args[0])
 		os.Exit(0)
 	}
 
 	infile := os.Args[1]
 	outfile := os.Args[2]
+
+	os.Exit(ProcessFile(infile, outfile, os.Args[3:]))
+}
+
+func ProcessFile(infile string, outfile string, opts []string) int {
 	fmt.Printf("converting %s --> %s ...\n", infile, outfile)
 
 	f, err := os.Open(infile)
 	if err != nil {
 		fmt.Printf("%v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	defer f.Close()
 
@@ -36,14 +42,14 @@ func main() {
 	_, err = io.ReadFull(reader, sig)
 	if err != nil {
 		fmt.Printf("reading signature: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	if string(sig) != "IBX1" {
 		// copy all data unmodified
 		outf, err := os.Create(outfile)
 		if err != nil {
 			fmt.Printf("%v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		defer outf.Close()
 
@@ -56,7 +62,7 @@ func main() {
 				break
 			}
 		}
-		return
+		return 0
 	}
 
 	// seems to be an IBX1 file
@@ -64,7 +70,7 @@ func main() {
 	numStrings, err := data.ReadNumber(reader)
 	if err != nil {
 		fmt.Printf("reading number of strings: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	//fmt.Printf("number of strings: 0x%x\n", numStrings.Value)
 	// strings
@@ -72,18 +78,18 @@ func main() {
 		n, err := data.ReadNumber(reader)
 		if err != nil {
 			fmt.Printf("reading string length: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		bs := make([]byte, n.Value)
 		_, err = io.ReadFull(reader, bs)
 		if err != nil {
 			fmt.Printf("reading string: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		_, err = reader.ReadByte() // 0-terminator
 		if err != nil {
 			fmt.Printf("reading string 0-terminator: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 
 		//fmt.Printf("0x%x 0x%x {%s}\n", i, n.Value, string(bs))
@@ -93,7 +99,7 @@ func main() {
 	numTypedValues, err := data.ReadNumber(reader)
 	if err != nil {
 		fmt.Errorf("reading number of typed values: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	//fmt.Printf("number of typed values: 0x%x\n", numTypedValues.Value)
 	// typed values
@@ -101,7 +107,7 @@ func main() {
 		tv, err := data.ReadTypedValue(reader)
 		if err != nil {
 			fmt.Printf("reading typed value: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 
 		//fmt.Printf("0x%x %v\n", i, tv)
@@ -111,13 +117,13 @@ func main() {
 	_, err = reader.ReadByte()
 	if err != nil {
 		fmt.Printf("reading encoding flag: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	// node structure
 	node, err := data.ReadNode(reader)
 	if err != nil {
 		fmt.Printf("reading node structure: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	doc.Element = node
 
@@ -127,7 +133,7 @@ func main() {
 	outf, err := os.Create(outfile)
 	if err != nil {
 		fmt.Printf("%v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	defer outf.Close()
 
@@ -139,7 +145,8 @@ func main() {
 	err = doc.WriteNode(enc, doc.Element)
 	if err != nil {
 		fmt.Printf("%v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	writer.Flush()
+	return 0
 }
