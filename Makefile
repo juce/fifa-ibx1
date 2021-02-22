@@ -1,7 +1,7 @@
-all: encoder decoder
+all: xml2dat dat2xml
 
-encoder: cmd/encoder/main.go data/tree.go data/types.go data/encoding.go
-	go build -o encoder cmd/encoder/main.go
+xml2dat: cmd/encoder/main.go data/tree.go data/types.go data/encoding.go
+	go build -o xml2dat cmd/encoder/main.go
 
-decoder: cmd/decoder/main.go data/tree.go data/types.go data/encoding.go
-	go build -o decoder cmd/decoder/main.go
+dat2xml: cmd/decoder/main.go data/tree.go data/types.go data/encoding.go
+	go build -o dat2xml cmd/decoder/main.go
