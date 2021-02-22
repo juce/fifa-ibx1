@@ -134,3 +134,65 @@ func (v String) Encode() []byte {
 	binary.LittleEndian.PutUint32(arr[1:], uint32(v.Value))
 	return arr
 }
+
+func (p *Property) Encode() []byte {
+	var buf bytes.Buffer
+	if p.Name+0x80 < 0xa0 {
+		val := uint8(0x80 + p.Name)
+		binary.Write(&buf, binary.BigEndian, val)
+	} else if p.Name < 0x100 {
+		val := uint8(p.Name)
+		buf.Write([]byte("\xa0"))
+		binary.Write(&buf, binary.BigEndian, val)
+	} else {
+		val := uint16(p.Name)
+		buf.Write([]byte("\xc0"))
+		binary.Write(&buf, binary.BigEndian, val)
+	}
+	v := Number{uint(p.Value)}
+	buf.Write(v.Encode())
+	return buf.Bytes()
+}
+
+func (n *Node) Encode() []byte {
+	var buf bytes.Buffer
+	buf.Write([]byte("\x00"))
+	np := Number{uint(len(n.Properties))}
+	buf.Write(np.Encode())
+	nc := Number{uint(len(n.Children))}
+	buf.Write(nc.Encode())
+	// props
+	for _, p := range n.Properties {
+		buf.Write(p.Encode())
+	}
+	// child nodes
+	for _, c := range n.Children {
+		buf.Write(c.Encode())
+	}
+	return buf.Bytes()
+}
+
+func (d *Document) Encode() []byte {
+	var buf bytes.Buffer
+	buf.Write([]byte("IBX1"))
+	// strings
+	nstrings := Number{uint(len(d.Strings))}
+	buf.Write(nstrings.Encode())
+	for _, s := range d.Strings {
+		n := Number{uint(len(s))}
+		buf.Write(n.Encode())
+		buf.Write([]byte(s))
+		buf.Write([]byte("\x00"))
+	}
+	// typed values
+	nvals := Number{uint(len(d.TypedValues))}
+	buf.Write(nvals.Encode())
+	for _, tv := range d.TypedValues {
+		buf.Write(tv.Encode())
+	}
+	// encoding flag
+	buf.Write([]byte("\x01"))
+	// node structure
+	buf.Write(d.Element.Encode())
+	return buf.Bytes()
+}

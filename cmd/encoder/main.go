@@ -7,7 +7,6 @@ import (
 	"io"
 	"juce/fifa-ibx1/data"
 	"os"
-	"strconv"
 )
 
 var Version = "unknown"
@@ -67,7 +66,7 @@ func main() {
 	f, err := os.Open(infile)
 	if err != nil {
 		fmt.Errorf("opening file: %v", err)
-		return
+		os.Exit(1)
 	}
 	defer f.Close()
 
@@ -91,70 +90,29 @@ func main() {
 		case xml.StartElement:
 			//fmt.Printf("%s\n", strings.Join(stack, " "))
 			if tok.Name.Local == "property" {
-				prop := &data.Property{}
+				var name string
 				var typ string
 				var val string
 				for _, a := range tok.Attr {
 					//fmt.Printf("%#v = %#v\n", a.Name.Local, a.Value)
 					if a.Name.Local == "name" {
-						name := string(a.Value)
-						prop.Name = &name
+						name = string(a.Value)
 					} else if a.Name.Local == "type" {
 						typ = a.Value
 					} else if a.Name.Local == "value" {
 						val = a.Value
 					}
 				}
-				if typ == "int8" {
-					v, err := strconv.Atoi(val)
-					if err == nil {
-						prop.Value = data.Int8{int8(v)}
-					}
-				} else if typ == "uint8" {
-					v, err := strconv.Atoi(val)
-					if err == nil {
-						prop.Value = data.UInt8{uint8(v)}
-					}
-				} else if typ == "int16" {
-					v, err := strconv.Atoi(val)
-					if err == nil {
-						prop.Value = data.Int16{int16(v)}
-					}
-				} else if typ == "uint16" {
-					v, err := strconv.Atoi(val)
-					if err == nil {
-						prop.Value = data.UInt16{uint16(v)}
-					}
-				} else if typ == "int32" {
-					v, err := strconv.Atoi(val)
-					if err == nil {
-						prop.Value = data.Int32{int32(v)}
-					}
-				} else if typ == "uint32" {
-					v, err := strconv.Atoi(val)
-					if err == nil {
-						prop.Value = data.UInt32{uint32(v)}
-					}
-				} else if typ == "string" {
-					prop.Value = data.String{0}
-				} else if typ == "bool" {
-					if val == "true" {
-						prop.Value = data.Bool{true}
-					} else {
-						prop.Value = data.Bool{false}
-					}
-				} else if typ == "float" {
-					v, err := strconv.ParseFloat(val, 32)
-					if err == nil {
-						prop.Value = data.Float{float32(v)}
-					}
+				prop := &data.Property{
+					doc.GetString(name),
+					doc.GetTypedValue(typ, val),
 				}
 
 				// add property to parent element
 				parent := stack[len(stack)-1]
 				parent.Properties = append(parent.Properties, prop)
 			} else {
-				elem := &data.Node{Name: &tok.Name.Local}
+				elem := &data.Node{Name: doc.GetString(tok.Name.Local)}
 				elem.Properties = []*data.Property{}
 				elem.Children = []*data.Node{}
 				stack = append(stack, elem) //push
@@ -176,5 +134,15 @@ func main() {
 		}
 	}
 
-	fmt.Printf("structure: %v\n", doc)
+	//fmt.Printf("structure: %v\n", doc)
+
+	f, err = os.Create(outfile)
+	if err != nil {
+		fmt.Printf("opening output file: %v", err)
+		os.Exit(1)
+	}
+	defer f.Close()
+
+	result := doc.Encode()
+	f.Write(result)
 }
