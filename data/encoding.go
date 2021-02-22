@@ -126,12 +126,12 @@ func (v String) Encode() []byte {
 	if v.Value < 0x10000 {
 		arr := make([]byte, 3)
 		arr[0] = 0xe0
-		binary.LittleEndian.PutUint16(arr[1:], uint16(v.Value))
+		binary.BigEndian.PutUint16(arr[1:], uint16(v.Value))
 		return arr
 	}
 	arr := make([]byte, 5)
 	arr[0] = 0xf0
-	binary.LittleEndian.PutUint32(arr[1:], uint32(v.Value))
+	binary.BigEndian.PutUint32(arr[1:], uint32(v.Value))
 	return arr
 }
 
@@ -149,7 +149,7 @@ func (p *Property) Encode() []byte {
 		buf.Write([]byte("\xc0"))
 		binary.Write(&buf, binary.BigEndian, val)
 	}
-	v := Number{uint(p.Value)}
+	v := Number{p.Value}
 	buf.Write(v.Encode())
 	return buf.Bytes()
 }
@@ -157,9 +157,11 @@ func (p *Property) Encode() []byte {
 func (n *Node) Encode() []byte {
 	var buf bytes.Buffer
 	buf.Write([]byte("\x00"))
-	np := Number{uint(len(n.Properties))}
+	name_index := Number{n.Name}
+	buf.Write(name_index.Encode())
+	np := Number{len(n.Properties)}
 	buf.Write(np.Encode())
-	nc := Number{uint(len(n.Children))}
+	nc := Number{len(n.Children)}
 	buf.Write(nc.Encode())
 	// props
 	for _, p := range n.Properties {
@@ -176,16 +178,16 @@ func (d *Document) Encode() []byte {
 	var buf bytes.Buffer
 	buf.Write([]byte("IBX1"))
 	// strings
-	nstrings := Number{uint(len(d.Strings))}
+	nstrings := Number{len(d.Strings)}
 	buf.Write(nstrings.Encode())
 	for _, s := range d.Strings {
-		n := Number{uint(len(s))}
+		n := Number{len(s)}
 		buf.Write(n.Encode())
 		buf.Write([]byte(s))
 		buf.Write([]byte("\x00"))
 	}
 	// typed values
-	nvals := Number{uint(len(d.TypedValues))}
+	nvals := Number{len(d.TypedValues)}
 	buf.Write(nvals.Encode())
 	for _, tv := range d.TypedValues {
 		buf.Write(tv.Encode())

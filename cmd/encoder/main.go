@@ -11,49 +11,17 @@ import (
 
 var Version = "unknown"
 
+type PropList struct {
+	props []XmlProp
+}
+
+type XmlProp struct {
+	name  string
+	typ   string
+	value string
+}
+
 func main() {
-	/**
-	strings := []string{
-		"",
-		"FIFA_Base",
-	}
-	val := data.Int16{4}
-	val1 := data.UInt8{0x36}
-	val2 := data.Int32{-1}
-	val3 := data.String{1}
-	val4 := data.String{134}
-	val5 := data.Float{}
-	val6 := data.Bool{true}
-	val7 := data.Bool{}
-
-	val8 := data.TypedValue(data.Int16{5})
-	val9 := data.Int8{7}
-	valA := data.String{12345}
-
-	fmt.Printf("FIFA IBX1 decoder. Version %s\n", Version)
-	fmt.Printf("val: %v\n", val)
-	fmt.Printf("val1: %v\n", val1)
-	fmt.Printf("val2: %v\n", val2)
-	fmt.Printf("val3: %v\n", val3)
-	fmt.Printf("val3: %#v\n", val3.Encode())
-	fmt.Printf("val3: %s\n", val3.Deref(strings))
-	fmt.Printf("val4: %v\n", val4)
-	fmt.Printf("val4: %#v\n", val4.Encode())
-	fmt.Printf("val5: %v\n", val5)
-	fmt.Printf("val6: %v\n", val6)
-	fmt.Printf("val7: %v\n", val7)
-	fmt.Printf("val8: %v\n", val8)
-	fmt.Printf("val8: %#v\n", val8.Encode())
-	fmt.Printf("val9: %v\n", val9)
-	fmt.Printf("val9: %#v\n", val9.Encode())
-	fmt.Printf("valA: %#v\n", valA.Encode())
-
-
-	fmt.Printf("bytes: %#v\n", data.Number{0x33}.Encode())
-	fmt.Printf("bytes: %#v\n", data.Number{0xe7}.Encode())
-	fmt.Printf("bytes: %#v\n", data.Number{0x1e3}.Encode())
-	**/
-
 	if len(os.Args) < 3 {
 		fmt.Printf("Usage: %s <infile> <outfile> [options]\n", os.Args[0])
 		os.Exit(0)
@@ -65,19 +33,18 @@ func main() {
 
 	f, err := os.Open(infile)
 	if err != nil {
-		fmt.Errorf("opening file: %v", err)
+		fmt.Errorf("opening input file: %v", err)
 		os.Exit(1)
 	}
 	defer f.Close()
 
-	var doc data.Document
+	doc := data.Document{ShareTypedValues: true}
+
 	dec := xml.NewDecoder(bufio.NewReader(f))
-	//err = dec.Decode(&doc.Element)
-	//if err != nil {
-	//	fmt.Errorf("reading xml: %v", err)
-	//}
 
 	var stack []*data.Node
+	var propStack []*PropList
+
 	for {
 		tok, err := dec.Token()
 		if err == io.EOF {
@@ -90,38 +57,42 @@ func main() {
 		case xml.StartElement:
 			//fmt.Printf("%s\n", strings.Join(stack, " "))
 			if tok.Name.Local == "property" {
-				var name string
-				var typ string
-				var val string
+				x := XmlProp{}
 				for _, a := range tok.Attr {
 					//fmt.Printf("%#v = %#v\n", a.Name.Local, a.Value)
 					if a.Name.Local == "name" {
-						name = string(a.Value)
+						x.name = string(a.Value)
 					} else if a.Name.Local == "type" {
-						typ = a.Value
+						x.typ = a.Value
 					} else if a.Name.Local == "value" {
-						val = a.Value
+						x.value = a.Value
 					}
 				}
-				prop := &data.Property{
-					doc.GetString(name),
-					doc.GetTypedValue(typ, val),
-				}
-
-				// add property to parent element
-				parent := stack[len(stack)-1]
-				parent.Properties = append(parent.Properties, prop)
+				li := propStack[len(propStack)-1]
+				li.props = append(li.props, x)
 			} else {
+				// element
 				elem := &data.Node{Name: doc.GetString(tok.Name.Local)}
 				elem.Properties = []*data.Property{}
 				elem.Children = []*data.Node{}
-				stack = append(stack, elem) //push
+				stack = append(stack, elem)                //push
+				propStack = append(propStack, &PropList{}) //push
 			}
 		case xml.EndElement:
 			if tok.Name.Local != "property" {
 				elem := stack[len(stack)-1]
 				//fmt.Printf("elem ending: %v\n", *elem.Name)
 				stack = stack[:len(stack)-1] //pop
+				// add props
+				li := propStack[len(propStack)-1]
+				propStack = propStack[:len(propStack)-1] //pop
+				for _, x := range li.props {
+					p := &data.Property{
+						Name:  doc.GetString(x.name),
+						Value: doc.GetTypedValue(x.typ, x.value),
+					}
+					elem.Properties = append(elem.Properties, p)
+				}
 				// add element to parent element, if parent exists
 				if len(stack) > 0 {
 					parent := stack[len(stack)-1]

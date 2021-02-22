@@ -7,15 +7,16 @@ import (
 )
 
 type Document struct {
-	Strings     []string
-	TypedValues []TypedValue
-	sMap        map[string]int
-	tvMap       map[string]int
-	Element     *Node
+	Strings          []string
+	TypedValues      []TypedValue
+	sMap             map[string]int
+	tvMap            map[string]int
+	Element          *Node
+	ShareTypedValues bool
 }
 
 type Number struct {
-	Value uint
+	Value int
 }
 
 type TypedValue interface {
@@ -69,8 +70,8 @@ func (d *Document) GetString(val string) int {
 func (d *Document) GetTypedValue(typ string, val string) int {
 	key := fmt.Sprintf("%s:%s", typ, val)
 	index, ok := d.tvMap[key]
-	if ok {
-		//return index
+	if ok && d.ShareTypedValues {
+		return index
 	}
 	index = len(d.TypedValues)
 	var tv TypedValue
@@ -108,7 +109,7 @@ func (d *Document) GetTypedValue(typ string, val string) int {
 		index := d.GetString(val)
 		tv = String{index}
 	} else if typ == "bool" {
-		if val == "true" {
+		if strings.ToLower(val) == "true" {
 			tv = Bool{true}
 		} else {
 			tv = Bool{false}
