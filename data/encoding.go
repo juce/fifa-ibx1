@@ -10,6 +10,12 @@ import (
 	"strings"
 )
 
+type Options struct {
+	Hex8  bool
+	Hex16 bool
+	Hex32 bool
+}
+
 func (n Number) Encode() []byte {
 	var arr []byte
 	if n.Value < 0x40 {
@@ -395,7 +401,7 @@ func ReadNode(reader *bufio.Reader) (*Node, error) {
 	return node, nil
 }
 
-func (d *Document) GetTypeAndValue(val TypedValue) (string, string) {
+func (d *Document) GetTypeAndValue(val TypedValue, options *Options) (string, string) {
 	switch val.(type) {
 	case String:
 		typeId := val.TypeId()
@@ -417,20 +423,29 @@ func (d *Document) GetTypeAndValue(val TypedValue) (string, string) {
 		return "bool", "false"
 	case Int8:
 		v := val.(Int8)
+		if options.Hex8 {
+			return "int8", fmt.Sprintf("0x%X", uint8(v.Value))
+		}
 		return "int8", fmt.Sprintf("%d", v.Value)
 	case Int16:
 		v := val.(Int16)
+		if options.Hex16 {
+			return "int16", fmt.Sprintf("0x%X", uint16(v.Value))
+		}
 		return "int16", fmt.Sprintf("%d", v.Value)
 	case Int32:
 		v := val.(Int32)
+		if options.Hex32 {
+			return "int32", fmt.Sprintf("0x%X", uint32(v.Value))
+		}
 		return "int32", fmt.Sprintf("%d", v.Value)
 	}
 	return "_?_", "_?_"
 }
 
-func (d *Document) WriteProperty(enc *xml.Encoder, prop *Property) error {
+func (d *Document) WriteProperty(enc *xml.Encoder, prop *Property, options *Options) error {
 	name := d.Strings[prop.Name]
-	typ, val := d.GetTypeAndValue(d.TypedValues[prop.Value])
+	typ, val := d.GetTypeAndValue(d.TypedValues[prop.Value], options)
 
 	t := xml.StartElement{
 		Name: xml.Name{Local: "property"},
@@ -451,7 +466,7 @@ func (d *Document) WriteProperty(enc *xml.Encoder, prop *Property) error {
 	return nil
 }
 
-func (d *Document) WriteNode(enc *xml.Encoder, node *Node) error {
+func (d *Document) WriteNode(enc *xml.Encoder, node *Node, options *Options) error {
 	// start tag
 	name := d.Strings[node.Name]
 	t := xml.StartElement{Name: xml.Name{Local: name}}
@@ -461,10 +476,10 @@ func (d *Document) WriteNode(enc *xml.Encoder, node *Node) error {
 	}
 	// child nodes
 	for _, p := range node.Properties {
-		d.WriteProperty(enc, p)
+		d.WriteProperty(enc, p, options)
 	}
 	for _, c := range node.Children {
-		d.WriteNode(enc, c)
+		d.WriteNode(enc, c, options)
 	}
 	// end tag
 	err = enc.EncodeToken(t.End())

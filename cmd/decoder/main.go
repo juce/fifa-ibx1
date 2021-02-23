@@ -81,6 +81,17 @@ func ProcessDir(indir string, outdir string, opts []string) int {
 func ProcessFile(infile string, outfile string, opts []string) int {
 	fmt.Printf("converting %s --> %s ... ", infile, outfile)
 
+	var options data.Options
+	for _, opt := range opts {
+		if opt == "--hex8" {
+			options.Hex8 = true
+		} else if opt == "--hex16" {
+			options.Hex16 = true
+		} else if opt == "--hex32" {
+			options.Hex32 = true
+		}
+	}
+
 	f, err := os.Open(infile)
 	if err != nil {
 		fmt.Printf("%v\n", err)
@@ -197,7 +208,7 @@ func ProcessFile(infile string, outfile string, opts []string) int {
 
 	enc := xml.NewEncoder(writer)
 	enc.Indent("", "  ")
-	err = doc.WriteNode(enc, doc.Element)
+	err = doc.WriteNode(enc, doc.Element, &options)
 	if err != nil {
 		fmt.Printf("%v\n", err)
 		return -1

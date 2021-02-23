@@ -2,6 +2,7 @@ package data
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -76,32 +77,32 @@ func (d *Document) GetTypedValue(typ string, val string) int {
 	index = len(d.TypedValues)
 	var tv TypedValue
 	if typ == "int8" {
-		v, err := strconv.Atoi(val)
+		v, err := strconv.ParseInt(val, 0, 64)
 		if err == nil {
 			tv = Int8{int8(v)}
 		}
-	} else if typ == "uint8" {
-		v, err := strconv.Atoi(val)
+	} else if typ == "uint8" || typ == "byte" {
+		v, err := strconv.ParseInt(val, 0, 64)
 		if err == nil {
 			tv = UInt8{uint8(v)}
 		}
-	} else if typ == "int16" {
-		v, err := strconv.Atoi(val)
+	} else if typ == "int16" || typ == "short" {
+		v, err := strconv.ParseInt(val, 0, 64)
 		if err == nil {
 			tv = Int16{int16(v)}
 		}
 	} else if typ == "uint16" {
-		v, err := strconv.Atoi(val)
+		v, err := strconv.ParseInt(val, 0, 64)
 		if err == nil {
 			tv = UInt16{uint16(v)}
 		}
-	} else if typ == "int32" {
-		v, err := strconv.Atoi(val)
+	} else if typ == "int32" || typ == "int" {
+		v, err := strconv.ParseInt(val, 0, 64)
 		if err == nil {
 			tv = Int32{int32(v)}
 		}
 	} else if typ == "uint32" {
-		v, err := strconv.Atoi(val)
+		v, err := strconv.ParseInt(val, 0, 64)
 		if err == nil {
 			tv = UInt32{uint32(v)}
 		}
@@ -119,6 +120,10 @@ func (d *Document) GetTypedValue(typ string, val string) int {
 		if err == nil {
 			tv = Float{float32(v)}
 		}
+	}
+	if tv == nil {
+		fmt.Printf("FATAL ERROR: bad value: \"%s\" or unknown type \"%s\". Aborting work\n", val, typ)
+		os.Exit(1)
 	}
 	d.TypedValues = append(d.TypedValues, tv)
 	if d.tvMap == nil {
