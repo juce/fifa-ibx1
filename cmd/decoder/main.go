@@ -53,12 +53,12 @@ func ProcessDir(indir string, outdir string, opts []string) int {
 	count := 0
 	entries, err := ioutil.ReadDir(indir)
 	if err != nil {
-		fmt.Println("problem reading directory: %v", err)
+		fmt.Printf("problem reading directory: %v\n", err)
 		return -1
 	}
 	err = os.MkdirAll(outdir, 0775)
 	if err != nil {
-		fmt.Println("problem creating output directory: %v", err)
+		fmt.Printf("problem creating output directory: %v\n", err)
 		return -1
 	}
 	for _, entry := range entries {
