@@ -5,8 +5,10 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"juce/fifa-ibx1/data"
 	"os"
+	"path"
 )
 
 var Version = "unknown"
@@ -24,22 +26,75 @@ type XmlProp struct {
 func main() {
 	if len(os.Args) < 3 {
 		fmt.Printf("FIFA IBX1 Encoder by juce. Version: %s\n", Version)
-		fmt.Printf("Usage: %s <infile> <outfile> [options]\n", os.Args[0])
+		fmt.Printf("Usage: %s <infile|indir> <outfile|outdir> [options]\n", os.Args[0])
 		os.Exit(0)
 	}
 
 	infile := os.Args[1]
 	outfile := os.Args[2]
-	os.Exit(ProcessFile(infile, outfile, os.Args[3:]))
+	options := os.Args[3:]
+
+	fi, err := os.Stat(infile)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	var count int
+	if fi.IsDir() {
+		// input is a directory
+		count = ProcessDir(infile, outfile, options)
+	} else {
+		// check if output is an existing directory
+		fi, err := os.Stat(outfile)
+		if err == nil && fi.IsDir() {
+			ext := path.Ext(infile)
+			outfile = path.Join(outfile, fmt.Sprintf("%s%s", infile[:len(infile)-len(ext)], ".dat"))
+		}
+		count = ProcessFile(infile, outfile, options)
+	}
+	if count < 0 {
+		os.Exit(1)
+	}
+	fmt.Println("files processed:", count)
+}
+
+func ProcessDir(indir string, outdir string, opts []string) int {
+	count := 0
+	entries, err := ioutil.ReadDir(indir)
+	if err != nil {
+		fmt.Println("problem reading directory: %v", err)
+		return -1
+	}
+	err = os.MkdirAll(outdir, 0775)
+	if err != nil {
+		fmt.Println("problem creating output directory: %v", err)
+		return -1
+	}
+	for _, entry := range entries {
+		if entry.Name() == "." || entry.Name() == ".." {
+			continue
+		}
+		inItem := path.Join(indir, entry.Name())
+		outItem := path.Join(outdir, entry.Name())
+		if entry.IsDir() {
+			count += ProcessDir(inItem, outItem, opts)
+		} else {
+			ext := path.Ext(outItem)
+			outItem = fmt.Sprintf("%s%s", outItem[:len(outItem)-len(ext)], ".dat")
+			count += ProcessFile(inItem, outItem, opts)
+		}
+	}
+	return count
 }
 
 func ProcessFile(infile string, outfile string, opts []string) int {
-	fmt.Printf("converting %s --> %s ...\n", infile, outfile)
+	fmt.Printf("converting %s --> %s ... ", infile, outfile)
 
 	f, err := os.Open(infile)
 	if err != nil {
 		fmt.Errorf("opening input file: %v", err)
-		return 1
+		return -1
 	}
 	defer f.Close()
 
@@ -56,7 +111,7 @@ func ProcessFile(infile string, outfile string, opts []string) int {
 			break
 		} else if err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
-			return 1
+			return -1
 		}
 		switch tok := tok.(type) {
 		case xml.StartElement:
@@ -115,11 +170,12 @@ func ProcessFile(infile string, outfile string, opts []string) int {
 	f, err = os.Create(outfile)
 	if err != nil {
 		fmt.Printf("opening output file: %v", err)
-		return 1
+		return -1
 	}
 	defer f.Close()
 
 	result := doc.Encode()
 	f.Write(result)
-	return 0
+	fmt.Println("OK")
+	return 1
 }
