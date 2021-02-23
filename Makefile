@@ -8,3 +8,6 @@ xml2dat: cmd/encoder/main.go data/tree.go data/types.go data/encoding.go
 
 dat2xml: cmd/decoder/main.go data/tree.go data/types.go data/encoding.go
 	go build -ldflags="-X main.Version=${VERSION}-${GIT_COMMIT}" -o dat2xml cmd/decoder/main.go
+
+clean:
+	rm -f xml2dat dat2xml
