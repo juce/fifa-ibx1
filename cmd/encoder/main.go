@@ -26,7 +26,10 @@ type XmlProp struct {
 func main() {
 	if len(os.Args) < 3 {
 		fmt.Printf("FIFA IBX1 Encoder by juce. Version: %s\n", Version)
-		fmt.Printf("Usage: %s <infile|indir> <outfile|outdir> [options]\n", os.Args[0])
+		fmt.Printf("Usage: %s <in-path> <out-path> [options]\n", os.Args[0])
+		fmt.Printf("Options:\n")
+		fmt.Printf("\t--debug   : print out extra info for troubleshooting\n")
+		fmt.Printf("\t--noshare : do not re-use typed values (produces larger IBX1 files)\n")
 		os.Exit(0)
 	}
 
@@ -91,6 +94,15 @@ func ProcessDir(indir string, outdir string, opts []string) int {
 func ProcessFile(infile string, outfile string, opts []string) int {
 	fmt.Printf("converting %s --> %s ... ", infile, outfile)
 
+	var options data.Options
+	for _, opt := range opts {
+		if opt == "--debug" {
+			options.Debug = true
+		} else if opt == "--noshare" {
+			options.NoShare = true
+		}
+	}
+
 	f, err := os.Open(infile)
 	if err != nil {
 		fmt.Errorf("opening input file: %v", err)
@@ -98,7 +110,7 @@ func ProcessFile(infile string, outfile string, opts []string) int {
 	}
 	defer f.Close()
 
-	doc := data.Document{ShareTypedValues: true}
+	doc := data.Document{ShareTypedValues: !options.NoShare}
 
 	dec := xml.NewDecoder(bufio.NewReader(f))
 
@@ -113,6 +125,7 @@ func ProcessFile(infile string, outfile string, opts []string) int {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 			return -1
 		}
+		stop := false
 		switch tok := tok.(type) {
 		case xml.StartElement:
 			//fmt.Printf("%s\n", strings.Join(stack, " "))
@@ -132,6 +145,11 @@ func ProcessFile(infile string, outfile string, opts []string) int {
 				li.props = append(li.props, x)
 			} else {
 				// element
+				if len(tok.Attr) > 0 {
+					fmt.Printf("warn: element %s has attributes ", tok.Name.Local)
+					stop = true
+					break
+				}
 				elem := &data.Node{Name: doc.GetString(tok.Name.Local)}
 				elem.Properties = []*data.Property{}
 				elem.Children = []*data.Node{}
@@ -163,9 +181,47 @@ func ProcessFile(infile string, outfile string, opts []string) int {
 				}
 			}
 		}
+		if stop {
+			break
+		}
 	}
 
-	//fmt.Printf("structure: %v\n", doc)
+	if doc.Element == nil {
+		f.Seek(0, 0)
+		reader := bufio.NewReader(f)
+
+		// copy all data unmodified
+		outf, err := os.Create(outfile)
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			return -1
+		}
+		defer outf.Close()
+
+		chunk := make([]byte, 16384)
+		for {
+			n, err := io.ReadFull(reader, chunk)
+			outf.Write(chunk[:n])
+			if err == io.EOF {
+				break
+			}
+		}
+		fmt.Println("OK (unchanged)")
+		return 1
+	}
+
+	if options.Debug {
+		fmt.Printf("\n")
+		fmt.Printf("num strings: 0x%x (%d)\n", len(doc.Strings), len(doc.Strings))
+		for i, s := range doc.Strings {
+			fmt.Printf("0x%x (%d): 0x%x {%s}\n", i, i, len(s), s)
+		}
+		fmt.Printf("num typed-values: 0x%x (%d)\n", len(doc.TypedValues), len(doc.TypedValues))
+		for i, v := range doc.TypedValues {
+			fmt.Printf("0x%x (%d): %v\n", i, i, v)
+		}
+		fmt.Printf("%v\n", doc)
+	}
 
 	f, err = os.Create(outfile)
 	if err != nil {

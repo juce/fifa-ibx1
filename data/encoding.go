@@ -11,9 +11,11 @@ import (
 )
 
 type Options struct {
-	Hex8  bool
-	Hex16 bool
-	Hex32 bool
+	Hex8    bool
+	Hex16   bool
+	Hex32   bool
+	Debug   bool
+	NoShare bool
 }
 
 func (n Number) Encode() []byte {

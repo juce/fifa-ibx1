@@ -16,7 +16,12 @@ var Version = "unknown"
 func main() {
 	if len(os.Args) < 3 {
 		fmt.Printf("FIFA IBX1 Decoder by juce. Version: %s\n", Version)
-		fmt.Printf("Usage: %s <infile|indir> <outfile|outdir> [options]\n", os.Args[0])
+		fmt.Printf("Usage: %s <in-path> <out-path> [options]\n", os.Args[0])
+		fmt.Printf("Options:\n")
+		fmt.Printf("\t--debug : print out extra info for troubleshooting\n")
+		fmt.Printf("\t--hex8  : output 8-bit integers in hexadecimal format\n")
+		fmt.Printf("\t--hex16 : output 16-bit integers in hexadecimal format\n")
+		fmt.Printf("\t--hex32 : output 32-bit integers in hexadecimal format\n")
 		os.Exit(0)
 	}
 
@@ -89,6 +94,8 @@ func ProcessFile(infile string, outfile string, opts []string) int {
 			options.Hex16 = true
 		} else if opt == "--hex32" {
 			options.Hex32 = true
+		} else if opt == "--debug" {
+			options.Debug = true
 		}
 	}
 
@@ -138,7 +145,9 @@ func ProcessFile(infile string, outfile string, opts []string) int {
 		fmt.Printf("reading number of strings: %v\n", err)
 		return -1
 	}
-	//fmt.Printf("number of strings: 0x%x\n", numStrings.Value)
+	if options.Debug {
+		fmt.Printf("number of strings: 0x%x (%d)\n", numStrings.Value, numStrings.Value)
+	}
 	// strings
 	for i := 0; i < numStrings.Value; i++ {
 		n, err := data.ReadNumber(reader)
@@ -158,7 +167,9 @@ func ProcessFile(infile string, outfile string, opts []string) int {
 			return -1
 		}
 
-		//fmt.Printf("0x%x 0x%x {%s}\n", i, n.Value, string(bs))
+		if options.Debug {
+			fmt.Printf("0x%x (%d): 0x%x {%s}\n", i, i, n.Value, string(bs))
+		}
 		doc.Strings = append(doc.Strings, string(bs))
 	}
 	// num typed values
@@ -167,7 +178,9 @@ func ProcessFile(infile string, outfile string, opts []string) int {
 		fmt.Errorf("reading number of typed values: %v\n", err)
 		return -1
 	}
-	//fmt.Printf("number of typed values: 0x%x\n", numTypedValues.Value)
+	if options.Debug {
+		fmt.Printf("number of typed values: 0x%x (%d)\n", numTypedValues.Value, numTypedValues.Value)
+	}
 	// typed values
 	for i := 0; i < numTypedValues.Value; i++ {
 		tv, err := data.ReadTypedValue(reader)
@@ -176,7 +189,9 @@ func ProcessFile(infile string, outfile string, opts []string) int {
 			return -1
 		}
 
-		//fmt.Printf("0x%x %v\n", i, tv)
+		if options.Debug {
+			fmt.Printf("0x%x (%d): %v\n", i, i, tv)
+		}
 		doc.TypedValues = append(doc.TypedValues, tv)
 	}
 	// encoding flag
@@ -193,7 +208,9 @@ func ProcessFile(infile string, outfile string, opts []string) int {
 	}
 	doc.Element = node
 
-	//fmt.Printf("%v\n", doc)
+	if options.Debug {
+		fmt.Printf("%v\n", doc)
+	}
 
 	// output as XML
 	outf, err := os.Create(outfile)
