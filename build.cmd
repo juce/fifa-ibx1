@@ -3,6 +3,6 @@
 @SET /p GIT_COMMIT= <temp
 
 go build -ldflags="-X main.Version=%VERSION%-%GIT_COMMIT%" -o xml2dat.exe cmd/encoder/main.go
-go build -ldflags="-X main.Version=%VERSION%-%GIT_COMMIT%" -o xml2dat.exe cmd/encoder/main.go
+go build -ldflags="-X main.Version=%VERSION%-%GIT_COMMIT%" -o dat2xml.exe cmd/decoder/main.go
 
 @del /Q temp
